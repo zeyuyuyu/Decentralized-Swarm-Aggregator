@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GitSynth - Turn Code into Music!</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        .achievement-unlock {
+            animation: pulse 0.5s ease-in-out;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="fixed top-0 right-0 m-4 z-50" id="achievementPopup"></div>
+    
+    <nav class="bg-gray-800 p-4">
+        <div class="container mx-auto flex justify-between items-center">
+            <h1 class="text-2xl font-bold">GitSynth</h1>
+            <div class="flex items-center space-x-4">
+                <span class="text-yellow-400">⭐ <span id="points">0</span> Points</span>
+                <span class="text-blue-400">🏆 Level <span id="level">1</span></span>
+                <button onclick="shareProgress()" class="bg-green-500 hover:bg-green-600 px-4 py-2 rounded">Share Progress</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="container mx-auto p-8">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-bold mb-4">Your Musical Journey</h2>
+                <div class="progress-tree space-y-4">
+                    <div class="achievement flex items-center p-3 bg-gray-700 rounded-lg">
+                        <div class="flex-1">
+                            <h3 class="font-bold">First Synthesis</h3>
+                            <p class="text-sm text-gray-400">Create your first code melody</p>
+                        </div>
+                        <span class="text-2xl" id="achievement1">🔒</span>
+                    </div>
+                    <div class="achievement flex items-center p-3 bg-gray-700 rounded-lg">
+                        <div class="flex-1">
+                            <h3 class="font-bold">Social Butterfly</h3>
+                            <p class="text-sm text-gray-400">Share 3 creations</p>
+                        </div>
+                        <span class="text-2xl" id="achievement2">🔒</span>
+                    </div>
+                    <div class="achievement flex items-center p-3 bg-gray-700 rounded-lg">
+                        <div class="flex-1">
+                            <h3 class="font-bold">Viral Hit</h3>
+                            <p class="text-sm text-gray-400">Get 100 likes on a creation</p>
+                        </div>
+                        <span class="text-2xl" id="achievement3">🔒</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-bold mb-4">Global Leaderboard</h2>
+                <div class="space-y-2" id="leaderboard">
+                    <!-- Dynamically populated -->
+                </div>
+            </div>
+        </div>
+
+        <div class="mt-8 bg-gray-800 p-6 rounded-lg">
+            <h2 class="text-xl font-bold mb-4">Daily Challenges</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="challenge p-4 bg-gray-700 rounded-lg cursor-pointer hover:bg-gray-600 transition">
+                    <h3 class="font-bold">Synth Master</h3>
+                    <p class="text-sm text-gray-400">Create 3 melodies today</p>
+                    <div class="mt-2 bg-gray-800 rounded-full h-2">
+                        <div class="bg-blue-500 h-2 rounded-full" style="width: 30%"></div>
+                    </div>
+                </div>
+                <!-- More challenges -->
+            </div>
+        </div>
+    </main>
+
+    <script>
+        function unlockAchievement(id, title) {
+            const popup = document.getElementById('achievementPopup');
+            popup.innerHTML = `
+                <div class="bg-green-500 text-white px-6 py-3 rounded-lg shadow-lg achievement-unlock">
+                    🏆 Achievement Unlocked: ${title}
+                </div>
+            `;
+            setTimeout(() => popup.innerHTML = '', 3000);
+            
+            // Update points and level
+            const points = document.getElementById('points');
+            const level = document.getElementById('level');
+            points.textContent = parseInt(points.textContent) + 100;
+            if (parseInt(points.textContent) >= 500) {
+                level.textContent = parseInt(level.textContent) + 1;
+            }
+        }
+
+        function shareProgress() {
+            const text = `🎵 I'm level ${document.getElementById('level').textContent} on GitSynth with ${document.getElementById('points').textContent} points! Make music from code at gitsynth.com`;
+            if (navigator.share) {
+                navigator.share({
+                    title: 'My GitSynth Progress',
+                    text: text,
+                    url: 'https://gitsynth.com'
+                });
+            } else {
+                // Fallback
+                prompt('Share your progress:', text);
+            }
+        }
+
+        // Simulate leaderboard data
+        const leaderboard = document.getElementById('leaderboard');
+        const users = [
+            { name: 'CodeMaster', points: 2500 },
+            { name: 'SynthQueen', points: 2200 },
+            { name: 'MelodyKing', points: 1800 }
+        ];
+
+        users.forEach((user, index) => {
+            leaderboard.innerHTML += `
+                <div class="flex items-center justify-between p-3 ${index === 0 ? 'bg-yellow-900' : 'bg-gray-700'} rounded-lg">
+                    <div class="flex items-center">
+                        <span class="font-bold mr-2">#${index + 1}</span>
+                        <span>${user.name}</span>
+                    </div>
+                    <span>${user.points} pts</span>
+                </div>
+            `;
+        });
+    </script>
+</body>
+</html>
