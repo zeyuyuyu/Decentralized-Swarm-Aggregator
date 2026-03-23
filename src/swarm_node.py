@@ -1,111 +1,99 @@
 import asyncio
 import json
-import time
+from typing import Dict, List, Optional
 from dataclasses import dataclass
-from typing import Dict, Set
+from datetime import datetime
+import aiohttp
 
 @dataclass
-class Node:
+class NodeInfo:
     id: str
     address: str
-    last_seen: float
-    meta: dict
+    last_seen: datetime
+    capabilities: List[str]
 
 class SwarmNode:
     def __init__(self, node_id: str, host: str, port: int):
         self.node_id = node_id
         self.host = host
         self.port = port
-        self.nodes: Dict[str, Node] = {}
-        self.active = False
-        self.heartbeat_interval = 5.0
-        self.node_timeout = 15.0
+        self.peers: Dict[str, NodeInfo] = {}
+        self.capabilities = ['compute', 'storage']
+        self.is_running = False
 
     async def start(self):
-        self.active = True
+        self.is_running = True
         await asyncio.gather(
-            self.heartbeat_loop(),
-            self.discovery_loop()
+            self.discovery_heartbeat(),
+            self.maintain_mesh()
+        )
+
+    async def discovery_heartbeat(self):
+        """Broadcast node presence and discover peers"""
+        while self.is_running:
+            try:
+                async with aiohttp.ClientSession() as session:
+                    # Broadcast presence to known peers
+                    for peer in self.peers.values():
+                        url = f'http://{peer.address}/heartbeat'
+                        payload = {
+                            'node_id': self.node_id,
+                            'address': f'{self.host}:{self.port}',
+                            'capabilities': self.capabilities,
+                            'timestamp': datetime.utcnow().isoformat()
+                        }
+                        try:
+                            async with session.post(url, json=payload) as resp:
+                                if resp.status == 200:
+                                    peer_data = await resp.json()
+                                    self._update_peer_info(peer_data)
+                        except Exception as e:
+                            print(f'Error connecting to peer {peer.address}: {e}')
+                            
+            except Exception as e:
+                print(f'Discovery heartbeat error: {e}')
+            await asyncio.sleep(30)
+
+    async def maintain_mesh(self):
+        """Clean up stale peers and maintain mesh network"""
+        while self.is_running:
+            now = datetime.utcnow()
+            # Remove peers not seen in last 90 seconds
+            stale_peers = [
+                pid for pid, peer in self.peers.items()
+                if (now - peer.last_seen).total_seconds() > 90
+            ]
+            for pid in stale_peers:
+                del self.peers[pid]
+            
+            await asyncio.sleep(30)
+
+    def _update_peer_info(self, peer_data: dict):
+        """Update peer information from heartbeat data"""
+        pid = peer_data['node_id']
+        self.peers[pid] = NodeInfo(
+            id=pid,
+            address=peer_data['address'],
+            last_seen=datetime.utcnow(),
+            capabilities=peer_data['capabilities']
         )
 
     async def stop(self):
-        self.active = False
+        """Gracefully shutdown node"""
+        self.is_running = False
 
-    async def heartbeat_loop(self):
-        """Periodically broadcast heartbeat to all known nodes"""
-        while self.active:
-            self._clean_stale_nodes()
-            heartbeat = {
-                'type': 'heartbeat',
-                'node_id': self.node_id,
-                'timestamp': time.time(),
-                'meta': {
-                    'host': self.host,
-                    'port': self.port
-                }
-            }
-            for node in self.nodes.values():
-                try:
-                    await self._send_message(node.address, heartbeat)
-                except Exception as e:
-                    print(f'Failed to send heartbeat to {node.id}: {e}')
-            await asyncio.sleep(self.heartbeat_interval)
-
-    async def discovery_loop(self):
-        """Listen for incoming node discoveries and heartbeats"""
-        server = await asyncio.start_server(
-            self._handle_connection, 
-            self.host, 
-            self.port
-        )
-        async with server:
-            await server.serve_forever()
-
-    async def _handle_connection(self, reader, writer):
-        """Handle incoming connection and messages"""
-        data = await reader.read()
-        msg = json.loads(data.decode())
-
-        if msg['type'] == 'heartbeat':
-            self._update_node(
-                msg['node_id'],
-                f"{msg['meta']['host']}:{msg['meta']['port']}",
-                msg['timestamp'],
-                msg['meta']
-            )
-
-        writer.close()
-        await writer.wait_closed()
-
-    def _update_node(self, node_id: str, address: str, timestamp: float, meta: dict):
-        """Update node information in local registry"""
-        if node_id not in self.nodes:
-            print(f'Discovered new node: {node_id}')
-        self.nodes[node_id] = Node(
-            id=node_id,
-            address=address,
-            last_seen=timestamp,
-            meta=meta
-        )
-
-    def _clean_stale_nodes(self):
-        """Remove nodes that haven't sent a heartbeat recently"""
-        current_time = time.time()
-        stale_nodes = [
-            node_id for node_id, node in self.nodes.items()
-            if current_time - node.last_seen > self.node_timeout
-        ]
-        for node_id in stale_nodes:
-            print(f'Node {node_id} timed out, removing')
-            del self.nodes[node_id]
-
-    async def _send_message(self, address: str, message: dict):
-        """Send message to specific node"""
-        host, port = address.split(':')
-        port = int(port)
-        
-        reader, writer = await asyncio.open_connection(host, port)
-        writer.write(json.dumps(message).encode())
-        await writer.drain()
-        writer.close()
-        await writer.wait_closed()
+    async def get_network_status(self) -> dict:
+        """Get current network mesh status"""
+        return {
+            'node_id': self.node_id,
+            'address': f'{self.host}:{self.port}',
+            'peers': len(self.peers),
+            'capabilities': self.capabilities,
+            'connected_peers': [
+                {
+                    'id': p.id,
+                    'address': p.address,
+                    'capabilities': p.capabilities
+                } for p in self.peers.values()
+            ]
+        }
